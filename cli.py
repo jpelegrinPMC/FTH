@@ -3,7 +3,7 @@ import json
 import sys
 import asyncio
 import click
-from typing import Optional
+from typing import Optional, Any
 
 # Import FutureHouseClient and JobNames from the official package
 # See documentation lines 80-110 for examples of use
@@ -34,12 +34,21 @@ def create_client(api_key: str) -> "FutureHouseClient":
     return FutureHouseClient(api_key=api_key)
 
 
-def handle_http_error(error: Exception):
-    """Handle HTTP and API errors with user-friendly messages.
+def object_to_jsonable(obj: Any) -> Any:
+    """Convert pydantic or dataclass objects into JSON-serializable dicts."""
+    if isinstance(obj, list):
+        return [object_to_jsonable(i) for i in obj]
+    if hasattr(obj, "model_dump"):
+        return obj.model_dump()
+    if hasattr(obj, "dict"):
+        return obj.dict()
+    if hasattr(obj, "__dict__"):
+        return obj.__dict__
+    return obj
 
-    Error codes documented in the guide: 400, 401, 403, 429, 500, 503.
-    See 【F:INFOGUIDE.txt†L288-L299】
-    """
+
+def handle_http_error(error: Exception):
+    """Handle HTTP and API errors with user-friendly messages."""
     message = str(error)
     status = getattr(error, "status_code", None)
     if status is None and hasattr(error, "response") and error.response is not None:
@@ -65,33 +74,21 @@ def cli(ctx, api_key):
 @click.option("--continued-task-id", help="ID of previous task for follow-up")
 @click.option("--timeout", type=int, help="Execution timeout in seconds")
 @click.option("--max-steps", type=int, help="Maximum steps to run")
-@click.option("--runtime-config", "runtime_config_json", help="Additional runtime configuration as JSON")
 @click.pass_context
-def create(ctx, name, query, task_id, continued_task_id, timeout, max_steps, runtime_config_json):
+def create(ctx, name, query, task_id, continued_task_id, timeout, max_steps):
     """Create a task and return its ID."""
     api_key = get_api_key(ctx.obj.get("api_key"))
     client = create_client(api_key)
     runtime_config = {}
-    if runtime_config_json:
-        try:
-            runtime_config.update(json.loads(runtime_config_json))
-        except json.JSONDecodeError as exc:
-            raise click.BadParameter(f"Invalid JSON for runtime-config: {exc}") from exc
     if continued_task_id:
-        # Follow-up task example 【F:INFOGUIDE.txt†L148-L165】
         runtime_config["continued_task_id"] = continued_task_id
     if timeout:
         runtime_config["timeout"] = timeout
     if max_steps:
         runtime_config["max_steps"] = max_steps
 
-    job_name = (
-        JobNames.from_string(name)
-        if JobNames and hasattr(JobNames, "from_string")
-        else getattr(JobNames, name, name)
-    )
     task_data = {
-        "name": job_name,
+        "name": getattr(JobNames, name, name),
         "query": query,
         "id": task_id,
         "runtime_config": runtime_config or None,
@@ -110,93 +107,63 @@ def create(ctx, name, query, task_id, continued_task_id, timeout, max_steps, run
 @click.option("--continued-task-id", help="ID of previous task for follow-up")
 @click.option("--timeout", type=int, help="Execution timeout in seconds")
 @click.option("--max-steps", type=int, help="Maximum steps to run")
-@click.option("--runtime-config", "runtime_config_json", help="Additional runtime configuration as JSON")
 @click.option("--verbose", is_flag=True, help="Return detailed response")
 @click.pass_context
-def run(ctx, name, query, task_id, continued_task_id, timeout, max_steps, runtime_config_json, verbose):
+def run(ctx, name, query, task_id, continued_task_id, timeout, max_steps, verbose):
     """Create and run a task until completion."""
     api_key = get_api_key(ctx.obj.get("api_key"))
     client = create_client(api_key)
     runtime_config = {}
-    if runtime_config_json:
-        try:
-            runtime_config.update(json.loads(runtime_config_json))
-        except json.JSONDecodeError as exc:
-            raise click.BadParameter(f"Invalid JSON for runtime-config: {exc}") from exc
     if continued_task_id:
-        # Follow-up task example 【F:INFOGUIDE.txt†L148-L165】
         runtime_config["continued_task_id"] = continued_task_id
     if timeout:
         runtime_config["timeout"] = timeout
     if max_steps:
         runtime_config["max_steps"] = max_steps
 
-    job_name = (
-        JobNames.from_string(name)
-        if JobNames and hasattr(JobNames, "from_string")
-        else getattr(JobNames, name, name)
-    )
     task_data = {
-        "name": job_name,
+        "name": getattr(JobNames, name, name),
         "query": query,
         "id": task_id,
         "runtime_config": runtime_config or None,
     }
     try:
         response = client.run_tasks_until_done(task_data, verbose=verbose)
-        click.echo(json.dumps(response, ensure_ascii=False, indent=2))
+        click.echo(json.dumps(object_to_jsonable(response), ensure_ascii=False, indent=2))
     except Exception as e:
         handle_http_error(e)
 
 
-@cli.command(name="arun")
+@cli.command()
 @click.option("--name", required=True, type=str, help="Agent name (e.g. CROW, OWL)")
 @click.option("--query", required=True, help="Query text for the task")
 @click.option("--task-id", "task_id", help="Optional task UUID")
 @click.option("--continued-task-id", help="ID of previous task for follow-up")
 @click.option("--timeout", type=int, help="Execution timeout in seconds")
 @click.option("--max-steps", type=int, help="Maximum steps to run")
-@click.option("--runtime-config", "runtime_config_json", help="Additional runtime configuration as JSON")
 @click.option("--verbose", is_flag=True, help="Return detailed response")
 @click.pass_context
-def async_run(ctx, name, query, task_id, continued_task_id, timeout, max_steps, runtime_config_json, verbose):
-    """Run a task asynchronously until completion."""
-    # See asynchronous example in docs 【F:INFOGUIDE.txt†L92-L118】
+def arun(ctx, name, query, task_id, continued_task_id, timeout, max_steps, verbose):
+    """Asynchronously create and run a task until completion."""
     api_key = get_api_key(ctx.obj.get("api_key"))
     client = create_client(api_key)
-
     runtime_config = {}
-    if runtime_config_json:
-        try:
-            runtime_config.update(json.loads(runtime_config_json))
-        except json.JSONDecodeError as exc:
-            raise click.BadParameter(f"Invalid JSON for runtime-config: {exc}") from exc
     if continued_task_id:
-        # Follow-up task example 【F:INFOGUIDE.txt†L148-L165】
         runtime_config["continued_task_id"] = continued_task_id
     if timeout:
         runtime_config["timeout"] = timeout
     if max_steps:
         runtime_config["max_steps"] = max_steps
 
-    job_name = (
-        JobNames.from_string(name)
-        if JobNames and hasattr(JobNames, "from_string")
-        else getattr(JobNames, name, name)
-    )
     task_data = {
-        "name": job_name,
+        "name": getattr(JobNames, name, name),
         "query": query,
         "id": task_id,
         "runtime_config": runtime_config or None,
     }
-
-    async def _run():
-        return await client.arun_tasks_until_done(task_data, verbose=verbose)
-
     try:
-        response = asyncio.run(_run())
-        click.echo(json.dumps(response, ensure_ascii=False, indent=2))
+        response = asyncio.run(client.arun_tasks_until_done(task_data, verbose=verbose))
+        click.echo(json.dumps(object_to_jsonable(response), ensure_ascii=False, indent=2))
     except Exception as e:
         handle_http_error(e)
 
@@ -213,7 +180,7 @@ def run_batch(ctx, file_, verbose):
         tasks = json.load(f)
     try:
         responses = client.run_tasks_until_done(tasks, verbose=verbose)
-        click.echo(json.dumps(responses, ensure_ascii=False, indent=2))
+        click.echo(json.dumps(object_to_jsonable(responses), ensure_ascii=False, indent=2))
     except Exception as e:
         handle_http_error(e)
 
@@ -222,22 +189,15 @@ def run_batch(ctx, file_, verbose):
 @click.option("--file", "file_", required=True, type=click.Path(exists=True), help="JSON file with an array of tasks")
 @click.option("--verbose", is_flag=True, help="Return detailed responses")
 @click.pass_context
-def async_batch(ctx, file_, verbose):
-    """Run multiple tasks asynchronously from a JSON file.
-
-    Based on async batch example 【F:INFOGUIDE.txt†L120-L140】
-    """
+def run_abatch(ctx, file_, verbose):
+    """Run multiple tasks asynchronously from a JSON file."""
     api_key = get_api_key(ctx.obj.get("api_key"))
     client = create_client(api_key)
     with open(file_, "r", encoding="utf-8") as f:
         tasks = json.load(f)
-
-    async def _run():
-        return await client.arun_tasks_until_done(tasks, verbose=verbose)
-
     try:
-        responses = asyncio.run(_run())
-        click.echo(json.dumps(responses, ensure_ascii=False, indent=2))
+        responses = asyncio.run(client.arun_tasks_until_done(tasks, verbose=verbose))
+        click.echo(json.dumps(object_to_jsonable(responses), ensure_ascii=False, indent=2))
     except Exception as e:
         handle_http_error(e)
 
@@ -246,15 +206,12 @@ def async_batch(ctx, file_, verbose):
 @click.argument("task_id")
 @click.pass_context
 def status(ctx, task_id):
-    """Get the current status of a task.
-
-    Polling example in docs 【F:INFOGUIDE.txt†L338-L349】
-    """
+    """Get the current status of a task."""
     api_key = get_api_key(ctx.obj.get("api_key"))
     client = create_client(api_key)
     try:
         status_resp = client.get_task_status(task_id)
-        click.echo(json.dumps(status_resp, ensure_ascii=False, indent=2))
+        click.echo(json.dumps(object_to_jsonable(status_resp), ensure_ascii=False, indent=2))
     except Exception as e:
         handle_http_error(e)
 
@@ -263,15 +220,16 @@ def status(ctx, task_id):
 @click.argument("task_id")
 @click.pass_context
 def result(ctx, task_id):
-    """Get the final result for a completed task.
-
-    See polling example in docs 【F:INFOGUIDE.txt†L338-L349】
-    """
+    """Get the final result for a completed task."""
     api_key = get_api_key(ctx.obj.get("api_key"))
     client = create_client(api_key)
     try:
-        res = client.get_task_result(task_id)
-        click.echo(json.dumps(res, ensure_ascii=False, indent=2))
+        try:
+            res = client.get_task_result(task_id)
+        except AttributeError:
+            # Fallback for older client versions
+            res = getattr(client, "get_task", lambda _id: None)(task_id)
+        click.echo(json.dumps(object_to_jsonable(res), ensure_ascii=False, indent=2))
     except Exception as e:
         handle_http_error(e)
 

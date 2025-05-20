@@ -1,0 +1,78 @@
+{
+  "info": {
+    "name": "FutureHouse API",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Create Task",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{api_key}}"},
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "url": "{{base_url}}/tasks",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"CROW\",\n  \"query\": \"Example query\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Run Task",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{api_key}}"},
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "url": "{{base_url}}/tasks/run",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"name\": \"CROW\",\n  \"query\": \"Example query\"\n}"
+        }
+      }
+    },
+    {
+      "name": "Batch Tasks",
+      "request": {
+        "method": "POST",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{api_key}}"},
+          {"key": "Content-Type", "value": "application/json"}
+        ],
+        "url": "{{base_url}}/tasks/batch",
+        "body": {
+          "mode": "raw",
+          "raw": "[\n  {\n    \"name\": \"CROW\",\n    \"query\": \"Q1\"\n  },\n  {\n    \"name\": \"OWL\",\n    \"query\": \"Q2\"\n  }\n]"
+        }
+      }
+    },
+    {
+      "name": "Task Status",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{api_key}}"}
+        ],
+        "url": "{{base_url}}/tasks/{{task_id}}"
+      }
+    },
+    {
+      "name": "Task Result",
+      "request": {
+        "method": "GET",
+        "header": [
+          {"key": "Authorization", "value": "Bearer {{api_key}}"}
+        ],
+        "url": "{{base_url}}/tasks/{{task_id}}/result"
+      }
+    }
+  ],
+  "variable": [
+    {"key": "base_url", "value": "https://platform.futurehouse.org/api/v1"},
+    {"key": "api_key", "value": ""},
+    {"key": "task_id", "value": ""}
+  ]
+}
