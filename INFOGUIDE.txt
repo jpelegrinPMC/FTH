@@ -1,0 +1,424 @@
+Guía técnica completa de la API de FutureHouse
+La API de FutureHouse proporciona acceso programático a una suite de agentes de IA especializados en investigación científica. Esta guía técnica detalla todo lo necesario para implementar un cliente Python que interactúe eficientemente con esta API. Gitbook
+Documentación oficial y visión general
+FutureHouse es una organización sin fines de lucro respaldada por Eric Schmidt que ha desarrollado una plataforma de agentes de IA para acelerar la investigación científica. Futurehouse +3 La documentación oficial está disponible a través del "FutureHouse Cookbook", un sitio basado en GitBook. Gitbook La plataforma principal es accesible en:
+https://platform.futurehouse.org
+SiliconANGLE +3
+La API sigue una arquitectura REST con intercambio de datos en formato JSON y proporciona acceso a cuatro agentes de IA especializados:
+
+Crow: Agente de propósito general para búsqueda de literatura científica
+Falcon: Especializado en revisiones profundas de literatura científica
+Owl: Diseñado para responder "¿Alguien ha hecho X antes?" (anteriormente "HasAnyone")
+Phoenix: Implementación experimental de ChemCrow para investigación química FuturehouseGitbook
+
+Proceso de autenticación y obtención de API keys
+La API utiliza autenticación basada en claves API. Para obtener una clave:
+
+Crear una cuenta en https://platform.futurehouse.org/
+Iniciar sesión en la cuenta
+Navegar a la configuración de cuenta o desarrollador
+Generar una nueva clave API
+Copiar y almacenar la clave de forma segura Gitbook
+
+Implementación de autenticación:
+pythonfrom futurehouse_client import FutureHouseClient
+
+# Inicializar cliente con la clave API
+client = FutureHouseClient(api_key="tu_clave_api")
+Gitbook
+Para llamadas API REST directas (sin usar el cliente), incluir la clave en los encabezados:
+Authorization: Bearer tu_clave_api
+Endpoints disponibles y estructura de peticiones
+URL Base
+https://platform.futurehouse.org/api/v1
+Endpoints principales
+1. Crear tarea
+
+URL: /tasks
+Método: POST
+Parámetros:
+json{
+  "name": "CROW",
+  "query": "¿Qué enfermedades desatendidas han tenido tratamientos desarrollados por IA?",
+  "id": "opcional-uuid",
+  "runtime_config": {
+    "continued_task_id": "id-tarea-anterior-opcional",
+    "timeout": 60,
+    "max_steps": 100
+  }
+}
+
+
+2. Obtener estado de tarea
+
+URL: /tasks/{task_id}
+Método: GET
+
+3. Ejecutar tarea hasta finalización
+
+URL: /tasks/run
+Método: POST
+Parámetros: Iguales a Crear tarea, más:
+json{
+  "verbose": true  // Opcional, para obtener información detallada
+}
+
+
+4. Ejecutar múltiples tareas (batch)
+
+URL: /tasks/batch
+Método: POST
+Parámetros: Array de objetos de tarea
+
+Ejemplos de código en Python
+Instalación
+bashpip install futurehouse-client
+Ejemplo básico
+pythonfrom futurehouse_client import FutureHouseClient, JobNames
+
+# Inicializar cliente
+client = FutureHouseClient(api_key="tu_clave_api")
+
+# Crear datos de tarea
+task_data = {
+    "name": JobNames.CROW,
+    "query": "¿Qué avances se han realizado en el tratamiento del Alzheimer en los últimos 5 años?"
+}
+
+# Enviar tarea y esperar finalización
+task_response = client.run_tasks_until_done(task_data)
+
+# Imprimir respuesta
+print(task_response.answer)
+Gitbook
+Ejemplo asíncrono
+pythonimport asyncio
+from futurehouse_client import FutureHouseClient, JobNames
+
+async def main():
+    client = FutureHouseClient(api_key="tu_clave_api")
+    
+    task_data = {
+        "name": JobNames.OWL,
+        "query": "¿Alguien ha probado exerkinas terapéuticas en humanos o primates no humanos?"
+    }
+    
+    # Ejecutar petición asíncrona
+    task_response = await client.arun_tasks_until_done(task_data)
+    
+    # Procesar respuesta
+    print(task_response.answer)
+    
+    return task_response.task_id
+
+# Para Python 3.7+
+if __name__ == "__main__":
+    task_id = asyncio.run(main())
+Gitbook
+Ejemplo de procesamiento por lotes
+pythonimport asyncio
+from futurehouse_client import FutureHouseClient, JobNames
+
+async def main():
+    client = FutureHouseClient(api_key="tu_clave_api")
+    
+    # Múltiples tareas en una lista
+    task_data = [
+        {
+            "name": JobNames.OWL,
+            "query": "¿Alguien ha desarrollado un tratamiento basado en CRISPR para la anemia falciforme?"
+        },
+        {
+            "name": JobNames.CROW,
+            "query": "¿Cuáles son los desarrollos más recientes en tecnología de vacunas de ARNm?"
+        }
+    ]
+    
+    # Ejecutar tareas en lote y esperar finalización
+    task_responses = await client.arun_tasks_until_done(task_data)
+    
+    # Imprimir respuestas
+    for i, response in enumerate(task_responses):
+        print(f"Respuesta {i+1}: {response.answer}")
+
+# Para Python 3.7+
+if __name__ == "__main__":
+    asyncio.run(main())
+Gitbook
+Ejemplo de consultas de seguimiento
+python# Consulta inicial
+task_data = {
+    "name": JobNames.CROW, 
+    "query": "¿Cuántas especies de aves existen?"
+}
+task_id = client.create_task(task_data)
+
+# Consulta de seguimiento
+continued_task_data = {
+    "name": JobNames.CROW,
+    "query": "De la respuesta anterior, específicamente, ¿cuántas especies de cuervos hay?",
+    "runtime_config": {"continued_task_id": task_id}
+}
+task_result = client.run_tasks_until_done(continued_task_data)
+Gitbook
+Formato de peticiones y respuestas
+Formato de petición
+json{
+  "name": "CROW",
+  "query": "Texto de la consulta",
+  "id": "optional-uuid",
+  "runtime_config": {
+    "continued_task_id": "id-opcional-tarea-anterior",
+    "timeout": 60,
+    "max_steps": 100
+  }
+}
+Gitbook
+Formato de respuesta estándar
+json{
+  "answer": "Texto completo de la respuesta",
+  "formatted_answer": "Respuesta con referencias formateadas",
+  "success": true
+}
+Gitbook
+Formato de respuesta detallada (verbose)
+json{
+  "answer": "Texto completo de la respuesta",
+  "formatted_answer": "Respuesta con referencias formateadas",
+  "success": true,
+  "agent_state": {
+    // Objeto grande con todos los estados del agente durante el progreso de la tarea
+  },
+  "environment_frame": {
+    // Objeto anidado grande con todos los datos del entorno
+    // Para entornos PQA incluye contextos, metadatos de artículos y respuestas
+  },
+  "metadata": {
+    // Metadatos adicionales sobre la consulta
+  }
+}
+Gitbook
+Límites de uso y costes asociados
+FutureHouse es una organización sin fines de lucro, por lo que la información sobre costos específicos puede ser limitada. SiliconANGLETechCrunch Sin embargo, la API implementa límites de tasa estándar: Futurehouse +5
+Límites de solicitudes
+
+Límites por cliente basados en clave API
+Probable implementación de niveles basados en tiempo:
+
+Solicitudes por segundo (protección contra ráfagas)
+Solicitudes por minuto (gestión de capacidad a medio plazo)
+Solicitudes por día (gestión de cuota a largo plazo) MoesifAxway
+
+
+
+Niveles de cuenta
+Aunque no está documentado explícitamente, el sistema de autenticación con clave API sugiere que pueden existir diferentes niveles de acceso.
+Nivel gratuito
+La plataforma parece proporcionar algún nivel de acceso para investigadores con probables limitaciones en:
+
+Número de solicitudes
+Complejidad de las consultas
+Herramientas y bases de datos accesibles Openrouter
+
+Planes pagados
+Como plataforma de investigación sin fines de lucro, FutureHouse Futurehouse probablemente ofrece:
+
+Precios para instituciones de investigación
+Programas de acceso académico
+Posiblemente planes escalonados de uso comercial Futurehouse +2
+
+Para obtener información actual sobre precios, los desarrolladores deben contactar directamente con FutureHouse:
+
+Email: hello@futurehouse.org
+Sitio web: https://platform.futurehouse.org FuturehouseFuturehouse
+
+Mejores prácticas para implementación
+Patrones de uso eficiente de la API
+pythonfrom futurehouse_client import FutureHouseClient, JobNames
+
+# 1. Usar una sola instancia de cliente en toda la aplicación
+client = FutureHouseClient(api_key="tu_clave_api")
+
+# 2. Procesar consultas relacionadas en lotes cuando sea posible
+task_data = [
+    {"name": JobNames.OWL, "query": "¿Alguien ha probado exerkinas terapéuticas en humanos?"},
+    {"name": JobNames.CROW, "query": "¿Están las exerkinas validadas clínicamente para humanos?"}
+]
+task_responses = client.run_tasks_until_done(task_data)
+Gitbook
+Estrategias de caché
+python# Implementación utilizando un decorador de caché
+from functools import lru_cache
+
+@lru_cache(maxsize=100)
+def cached_query(agent_name, query_text):
+    task_data = {"name": agent_name, "query": query_text}
+    return client.run_tasks_until_done(task_data)
+Optimización de rendimiento
+python# Operaciones asíncronas para escenarios de alto rendimiento
+import asyncio
+
+async def main():
+    client = FutureHouseClient(api_key="tu_clave_api")
+    task_data = {...}
+    task_response = await client.arun_tasks_until_done(task_data)
+    return task_response
+
+asyncio.run(main())
+GitbookGitbook
+python# Configurar tiempos de espera apropiados
+# Para consultas científicas complejas que pueden tardar más en procesarse
+runtime_config = {"timeout": 120}  # 2 minutos
+
+# Para consultas más simples que requieren respuesta rápida
+runtime_config = {"timeout": 30}  # 30 segundos
+Gitbook
+Mejores prácticas de seguridad
+
+Gestión de claves API:
+
+Almacenar claves API de forma segura usando variables de entorno o servicios de gestión de secretos
+Nunca incluir claves API directamente en el código fuente
+Rotar claves periódicamente Gitbook
+
+
+Validación de entrada:
+
+Validar todas las entradas de usuario antes de enviarlas a la API
+Implementar límites de longitud de consulta para prevenir abusos
+
+
+
+Manejo de errores y solución de problemas comunes
+Códigos de error comunes
+CódigoDescripciónEstrategia de manejo400Bad Request - Parámetros o consulta inválidosValidar entradas, verificar formato de consulta401Unauthorized - Clave API inválidaVerificar clave API, revisar proceso de autenticación403Forbidden - Credenciales válidas pero permisos insuficientesVerificar nivel de acceso de cuenta, contactar soporte429Too Many Requests - Límite de tasa excedidoImplementar retroceso exponencial, reducir frecuencia de solicitudes500Internal Server Error - Problema del lado del servidorReintentar con retroceso exponencial, reportar a FutureHouse si persiste503Service Unavailable - Sobrecarga temporal o mantenimientoReintentar con retroceso exponencial
+Estrategias de reintento
+pythonfrom tenacity import retry, stop_after_attempt, wait_exponential
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1, min=2, max=60)
+)
+def consulta_resiliente(client, task_data):
+    return client.run_tasks_until_done(task_data)
+Manejo de límites de tasa
+pythonimport time
+from collections import deque
+
+class LimitadorTasa:
+    def __init__(self, max_llamadas, periodo):
+        self.max_llamadas = max_llamadas
+        self.periodo = periodo
+        self.llamadas = deque()
+        
+    def __call__(self, f):
+        def wrapper(*args, **kwargs):
+            ahora = time.time()
+            # Eliminar marcas de tiempo expiradas
+            while self.llamadas and self.llamadas[0] <= ahora - self.periodo:
+                self.llamadas.popleft()
+            
+            # Verificar si hemos alcanzado el límite de tasa
+            if len(self.llamadas) >= self.max_llamadas:
+                tiempo_espera = self.llamadas[0] + self.periodo - ahora
+                time.sleep(max(0, tiempo_espera))
+            
+            # Hacer la llamada y registrar la marca de tiempo
+            resultado = f(*args, **kwargs)
+            self.llamadas.append(time.time())
+            return resultado
+        return wrapper
+Soluciones a problemas comunes de integración
+
+Manejo de consultas de larga duración:
+
+python# Para análisis científico de larga duración, usar el enfoque no bloqueante
+task_id = client.create_task(task_data)
+
+# Sondear resultados periódicamente
+while True:
+    task_status = client.get_task_status(task_id)
+    if task_status.status == "COMPLETED":
+        result = client.get_task_result(task_id)
+        break
+    time.sleep(2)  # Esperar antes de verificar nuevamente
+Gitbook
+
+Gestión de respuestas grandes:
+
+python# Para respuestas grandes, procesar datos incrementalmente
+def procesar_respuesta_grande(response):
+    # Procesar solo datos esenciales primero
+    answer = response.answer
+    
+    # Procesar datos detallados solo cuando sea necesario
+    if hasattr(response, 'environment_frame') and response.environment_frame:
+        # Procesar datos detallados en fragmentos
+        for chunk in procesamiento_fragmentado(response.environment_frame):
+            procesar_fragmento(chunk)
+Gitbook
+
+Manejo de cambios en la API:
+
+python# Verificación de versión para manejar cambios de API elegantemente
+def verificar_compatibilidad():
+    from importlib.metadata import version
+    version_cliente = version('futurehouse_client')
+    if version_cliente < '0.5.0':  # Versión mínima compatible
+        logger.warning("La biblioteca cliente puede estar desactualizada. Por favor actualice.")
+Consejos adicionales de implementación
+
+Optimización de consultas: Formular consultas precisas y específicas para mejores resultados y menor uso de recursos:
+
+python# Mejor: Consulta específica
+task_data = {"name": JobNames.CROW, "query": "¿Cuáles son los factores genéticos asociados con la enfermedad de Parkinson según los estudios GWAS de 2020-2025?"}
+
+# Peor: Consulta vaga
+task_data = {"name": JobNames.CROW, "query": "Háblame sobre Parkinson"}
+
+Monitoreo de rendimiento: Implementar métricas para tiempos de respuesta y errores:
+
+pythonimport time
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("futurehouse_client")
+
+def consulta_con_metricas(client, task_data):
+    inicio = time.time()
+    try:
+        respuesta = client.run_tasks_until_done(task_data)
+        fin = time.time()
+        logger.info(f"Consulta completada en {fin - inicio:.2f} segundos")
+        return respuesta
+    except Exception as e:
+        fin = time.time()
+        logger.error(f"Error en consulta después de {fin - inicio:.2f} segundos: {str(e)}")
+        raise
+
+Almacenamiento eficiente de resultados: Para aplicaciones que procesan grandes volúmenes de datos científicos:
+
+pythonimport json
+import os
+
+def guardar_resultado(task_id, response):
+    # Crear directorio si no existe
+    os.makedirs("resultados", exist_ok=True)
+    
+    # Guardar datos esenciales
+    datos_esenciales = {
+        "task_id": task_id,
+        "query": response.query if hasattr(response, 'query') else "",
+        "answer": response.answer,
+        "timestamp": time.time()
+    }
+    
+    # Guardar en archivo JSON
+    with open(f"resultados/{task_id}.json", "w") as f:
+        json.dump(datos_esenciales, f)
+    
+    # Opcional: guardar datos detallados por separado si son grandes
+    if hasattr(response, 'environment_frame') and response.environment_frame:
+        with open(f"resultados/{task_id}_full.json", "w") as f:
+            json.dump(response.environment_frame, f)
+La API de FutureHouse ofrece potentes herramientas de IA para investigación científica a través de una interfaz de cliente Python relativamente sencilla. Gitbook Esta guía proporciona una base práctica para desarrollar un cliente Python robusto y eficiente para la API de FutureHouse, equilibrando el uso eficiente de los recursos con solidez y fiabilidad. TechCrunch +4
