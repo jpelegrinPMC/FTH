@@ -1,0 +1,625 @@
+Guía Técnica Exhaustiva de la API de FutureHouse para la Investigación Científica Avanzada
+1. Introducción al Ecosistema de la API de FutureHouse
+La plataforma FutureHouse se ha establecido con la misión de superar el cuello de botella informativo en la ciencia mediante la construcción de un "Científico IA". Esta plataforma proporciona un conjunto de agentes de inteligencia artificial diseñados para acelerar el descubrimiento científico, accesibles tanto a través de una interfaz web como, fundamentalmente para el desarrollo avanzado, mediante una Interfaz de Programación de Aplicaciones (API).   
+
+1.1. Visión General de la Plataforma FutureHouse y sus Agentes Científicos de IA
+La plataforma FutureHouse se distingue por ofrecer varios agentes de IA, cada uno con una especialización definida, permitiendo a los investigadores abordar diversas facetas del proceso científico. Estos agentes, identificados mediante JobNames, son fundamentales para la interacción con la API:
+
+Crow (JobNames.CROW, job-futurehouse-paperqa2): Actúa como un agente de propósito general optimizado para búsquedas rápidas en la literatura científica. Proporciona respuestas concisas y debidamente citadas, siendo ideal para la integración mediante API. Su base tecnológica es PaperQA2.   
+Falcon (JobNames.FALCON, job-futurehouse-paperqa2-deep): Está especializado en la realización de revisiones bibliográficas profundas. Es capaz de buscar y sintetizar un volumen de literatura científica superior al de otros agentes conocidos, accediendo a bases de datos especializadas como OpenTargets. El resultado de su trabajo son informes detallados y estructurados.   
+Owl (JobNames.OWL, job-futurehouse-hasanyone): Anteriormente conocido como HasAnyone, este agente se dedica a la búsqueda de precedentes, respondiendo a la pregunta de si una determinada investigación o experimento ya ha sido realizado. Su diseño enfatiza la exhaustividad (recall) en la búsqueda.   
+Phoenix (JobNames.PHOENIX, job-futurehouse-phoenix): Es un agente experimental enfocado en la química, siendo una nueva iteración de ChemCrow. Utiliza herramientas de quimioinformática para asistir en tareas como la planificación de síntesis y el diseño de nuevas moléculas.   
+Dummy (JobNames.DUMMY, job-futurehouse-dummy): Un agente diseñado principalmente para propósitos de prueba y validación de la plataforma.   
+Las capacidades centrales de estos agentes incluyen el acceso a textos completos de artículos científicos, el uso de herramientas especializadas, la evaluación de la calidad de las fuentes y la provisión de un razonamiento transparente en sus conclusiones. La plataforma está construida para ser escalable, facilitando los flujos de trabajo de los investigadores a través de su API.   
+
+La marcada especialización de estos agentes (Crow para velocidad, Falcon para profundidad, Owl para novedad, Phoenix para química) subraya la importancia de que los usuarios seleccionen meticulosamente el JobName adecuado para cada consulta específica. Esta selección es crucial para obtener resultados óptimos y gestionar eficientemente los recursos computacionales, dado que cada agente ha sido evaluado y optimizado para diferentes capacidades. Utilizar Falcon para una consulta factual simple sería un uso ineficiente de recursos, mientras que Crow no sería suficiente para una revisión bibliográfica exhaustiva.   
+
+Un aspecto fundamental de la plataforma es su énfasis en el "razonamiento transparente". Esto sugiere que las respuestas de la API pueden contener datos detallados sobre la procedencia de la información, lo cual es vital para la validez científica. La capacidad de "ver este proceso para saber exactamente cómo los agentes llegaron a una conclusión determinada"  aborda directamente esta necesidad. Técnicamente, la estructura TaskResponseVerbose, con sus campos agent_state y environment_frame , proporciona los medios para esta transparencia, permitiendo a los usuarios construir confianza y verificar las conclusiones. La API, por lo tanto, no solo entrega resultados, sino que también ofrece la posibilidad de auditar el proceso de generación de dichos resultados.   
+
+La disponibilidad de esta API permite la creación de flujos de trabajo de investigación complejos y encadenados. Se pueden invocar programáticamente diferentes agentes de forma secuencial o paralela, automatizando procesos que tradicionalmente consumirían semanas de esfuerzo manual. Esto abre la puerta a una aceleración significativa en el ritmo del descubrimiento científico.
+
+1.2. Conceptos Centrales de la API: Jobs, Tareas y Consultas
+Para interactuar eficazmente con la API de FutureHouse, es esencial comprender su terminología fundamental:
+
+Un "job" se define como la combinación desplegada de un agente y un entorno dentro de la plataforma FutureHouse.   
+Para invocar un "job", se le somete una "tarea" (también denominada "consulta" o "query").   
+El concepto de "job" implica que existen entornos de agentes preconfigurados y optimizados para tareas específicas (por ejemplo, job-futurehouse-paperqa2 para el agente Crow). Los usuarios no configuran el agente desde cero para cada llamada a la API, sino que seleccionan un "job" predefinido y envían su consulta específica junto con parámetros de tiempo de ejecución. El enumerado JobNames  se asigna directamente a estos jobs preconfigurados. La API se centra en el envío de objetos TaskRequest a estos jobs nombrados.   
+
+Existe una relación causal directa: el TaskRequest (que contiene la consulta y la configuración de tiempo de ejecución) es la entrada que impulsa un "job" específico (agente + entorno) para producir un TaskResponse.
+
+1.3. El Rol del SDK de Python futurehouse-client
+El futurehouse-client es la biblioteca cliente oficial de Python para interactuar con los puntos finales (endpoints) de la API de la plataforma FutureHouse. Esta biblioteca implementa un RestClient denominado FutureHouseClient. Se puede instalar mediante uv pip install futurehouse-client , aunque también existe un paquete crow-client en PyPI , la documentación principal se centra en futurehouse-client.   
+
+La existencia de un SDK de Python dedicado demuestra la intención de FutureHouse de fomentar el acceso programático, especialmente dentro del ecosistema de computación científica, donde Python es dominante. Un SDK simplifica la interacción con la API, maneja detalles de bajo nivel como el formateo de solicitudes y las cabeceras de autenticación, y promueve el uso de mejores prácticas.
+
+Es importante notar una conexión subyacente: mientras que futurehouse-client es el cliente principal de la plataforma, el paquete fhlmi  (cuya fuente es probablemente el repositorio llm-client ) proporciona una "Interfaz de Modelo de Lenguaje" (Language Model Interface o LMI) para interactuar con diversos Modelos de Lenguaje Grandes (LLMs). Esta LMI incluye funcionalidades como la limitación de tasa (rate limiting) y el seguimiento de costos para esas llamadas a LLM. Los agentes de la plataforma (por ejemplo, Crow, Falcon) utilizan internamente LLMs. La documentación de futurehouse-client  no detalla su propia limitación de tasa para las llamadas a la API de la plataforma ni el seguimiento de costos para las tareas. Sin embargo, los agentes subyacentes consumen recursos de LLM. Por lo tanto, fhlmi representa una capa tecnológica potencialmente relacionada o subyacente. Los usuarios avanzados que busquen una "comprensión 100% técnica" deben ser conscientes de esta capa, ya que el comportamiento y los costos de la plataforma podrían estar influenciados por dicha gestión interna de LLM, sugiriendo una arquitectura por capas dentro de FutureHouse.   
+
+2. Configuración de su Entorno de Desarrollo
+Antes de interactuar programáticamente con la API de FutureHouse, es imperativo configurar adecuadamente el entorno de desarrollo. Esto implica la obtención y gestión segura de credenciales de API y la instalación de la biblioteca cliente necesaria.
+
+2.1. Autenticación mediante Clave API: Generación, Manejo Seguro y Uso
+La autenticación con la API de FutureHouse se realiza mediante una clave API (API key). Esta clave es un token único que identifica y autoriza al usuario o aplicación que realiza las solicitudes.   
+
+Obtención de la Clave API:
+Las claves API se pueden obtener directamente desde la página de perfil del usuario en la plataforma FutureHouse, accesible en: https://platform.futurehouse.org/profile.   
+
+Uso en el Cliente:
+La clave API se proporciona al instanciar el cliente FutureHouseClient. Un ejemplo de inicialización es:
+
+Python
+
+from futurehouse_client import FutureHouseClient
+
+api_key = "su_clave_api_aqui"  # Reemplace con su clave API real
+client = FutureHouseClient(api_key=api_key)
+   
+
+Manejo Seguro (Prácticas Recomendadas):
+Es crucial manejar las claves API de forma segura para proteger el acceso a la plataforma. Se recomienda:
+
+No incrustar (hardcode) las claves API directamente en el código fuente. En su lugar, utilizar variables de entorno, archivos de configuración externos gestionados de forma segura, o sistemas de gestión de secretos.
+Limitar los permisos asociados a una clave API si la plataforma lo permite (no especificado en la documentación actual).
+Rotar las claves API periódicamente o si se sospecha que han sido comprometidas.
+Implementar un control de acceso adecuado si las claves se comparten dentro de un equipo.
+El mecanismo de clave API es estándar para las plataformas SaaS e indica un modelo de autenticación sin estado por solicitud. Es probable que el RestClient subyacente incluya la clave API en las cabeceras HTTP (por ejemplo, Authorization o una cabecera personalizada como X-API-Key) para cada solicitud, un detalle que el SDK maneja internamente.
+
+2.2. Instalación e Importación de la Biblioteca futurehouse-client
+La interacción con la API se facilita enormemente mediante el uso de la biblioteca futurehouse-client.
+
+Instalación:
+La biblioteca se puede instalar utilizando uv (un instalador rápido de paquetes Python) o pip, el instalador estándar de Python:
+
+Bash
+
+uv pip install futurehouse-client
+# o alternativamente
+pip install futurehouse-client
+   
+
+Importaciones Fundamentales:
+La importación principal para utilizar el cliente es:
+
+Python
+
+from futurehouse_client import FutureHouseClient
+   
+
+Otras importaciones útiles que se encontrarán a lo largo de esta guía incluyen JobNames para referirse a los tipos de agentes de forma segura y TaskRequest para estructurar las solicitudes de tareas:
+
+Python
+
+from futurehouse_client import JobNames
+from futurehouse_client.models.app import TaskRequest
+   
+
+La ruta de importación futurehouse_client.models.app sugiere que la biblioteca utiliza modelos de datos, posiblemente basados en Pydantic o una tecnología similar, para los objetos TaskRequest y TaskResponse. Este enfoque promueve la seguridad de tipos y estructuras de datos claras, lo cual es una práctica común en el desarrollo de clientes API robustos y facilita la validación de datos y la serialización/deserialización.
+
+3. Dominando el FutureHouseClient: Interacciones Centrales
+Una vez configurado el entorno y obtenida la clave API, el siguiente paso es familiarizarse con las funcionalidades principales del FutureHouseClient. Este cliente es la puerta de entrada para todas las operaciones con la API de la plataforma.
+
+3.1. Inicialización y Configuración del Cliente
+La inicialización del cliente es el primer paso para cualquier interacción programática. Como se mencionó anteriormente, la instancia de FutureHouseClient se crea proporcionando la clave API:
+
+Python
+
+from futurehouse_client import FutureHouseClient
+
+# Asumiendo que la clave API está almacenada en una variable de entorno
+import os
+api_key = os.environ.get("FUTUREHOUSE_API_KEY")
+
+if not api_key:
+    raise ValueError("La variable de entorno FUTUREHOUSE_API_KEY no está configurada.")
+
+client = FutureHouseClient(api_key=api_key)
+   
+
+Es probable que el objeto FutureHouseClient maneje internamente la configuración de la URL base para las llamadas a la API, ya que este no es un parámetro de configuración expuesto durante la inicialización básica. Este encapsulamiento es una práctica estándar en el diseño de clientes REST, simplificando el uso para el desarrollador.   
+
+3.2. Ejecución Síncrona de Tareas: run_tasks_until_done()
+Para escenarios donde es aceptable esperar un resultado único o en scripts interactivos, la API ofrece un método de ejecución síncrona.
+
+Función: run_tasks_until_done(TaskRequest) o run_tasks_until_done(task_data_dict).   
+Comportamiento: Este método bloquea la ejecución del script hasta que la tarea se completa en la plataforma FutureHouse. Una vez finalizada, devuelve un objeto TaskResponse (o una subclase especializada como PQATaskResponse para ciertos agentes).   
+Un ejemplo de uso:
+
+Python
+
+from futurehouse_client import FutureHouseClient, JobNames
+from futurehouse_client.models.app import TaskRequest # Asegúrate de tener la clave API
+
+# client = FutureHouseClient(api_key="YOUR_API_KEY") # Ya inicializado
+
+task_request_data = TaskRequest(
+    name=JobNames.CROW,
+    query="What are the recent advancements in mRNA vaccine technology?"
+)
+
+try:
+    task_response = client.run_tasks_until_done(task_request_data)
+    if task_response.has_successful_answer:
+        print("Respuesta del Agente Crow:")
+        print(task_response.formatted_answer)
+    else:
+        print("El agente no pudo encontrar una respuesta satisfactoria.")
+except Exception as e:
+    print(f"Ocurrió un error durante la ejecución de la tarea: {e}")
+   
+
+Este método síncrono, run_tasks_until_done, probablemente opera internamente creando primero la tarea (similar a create_task) y luego sondeando repetidamente el estado de la tarea (similar a get_task) hasta que se marca como completada. Este patrón es común para simular un comportamiento síncrono sobre un backend que maneja tareas inherentemente asíncronas, como es típico en sistemas de IA que procesan tareas de larga duración.
+
+3.3. Gestión Asíncrona de Tareas
+La API de FutureHouse está diseñada teniendo en cuenta que las tareas de investigación científica pueden ser computacionalmente intensivas y, por lo tanto, de larga duración. Por ello, la gestión asíncrona de tareas es una característica fundamental, permitiendo la creación de aplicaciones escalables y no bloqueantes.
+
+3.3.1. Creación de Tareas: create_task() / acreate_task()
+Estos métodos permiten enviar una tarea a la plataforma sin esperar su finalización, lo que es esencial para operaciones no bloqueantes.
+
+Funciones:
+Síncrona: create_task(TaskRequest) o create_task(task_data_dict).   
+Asíncrona: await acreate_task(TaskRequest).   
+Entrada: Reciben un objeto TaskRequest o un diccionario con los argumentos correspondientes.   
+Salida: Devuelven el identificador único de la tarea (task_id), que es un UUID.   
+Ejemplo de creación de tarea asíncrona:
+
+Python
+
+import asyncio
+from futurehouse_client import FutureHouseClient, JobNames
+from futurehouse_client.models.app import TaskRequest
+
+# client = FutureHouseClient(api_key="YOUR_API_KEY") # Ya inicializado
+
+async def submit_async_task():
+    task_data = TaskRequest(
+        name=JobNames.FALCON,
+        query="Generate a comprehensive report on the role of gut microbiome in neurodegenerative diseases."
+    )
+    task_id = await client.acreate_task(task_data)
+    print(f"Tarea enviada con ID: {task_id}")
+    return task_id
+
+# Para ejecutar la función asíncrona (en un script, por ejemplo)
+# if __name__ == "__main__":
+#     created_task_id = asyncio.run(submit_async_task())
+   
+
+La capacidad de enviar tareas de forma asíncrona es crítica. Permite al sistema cliente continuar con otras operaciones o enviar múltiples tareas en paralelo, mejorando significativamente la eficiencia y la capacidad de respuesta de las aplicaciones que integran FutureHouse.
+
+3.3.2. Recuperación del Estado de la Tarea: get_task() / aget_task()
+Una vez que una tarea ha sido creada asíncronamente, se utilizan estos métodos para consultar su estado y obtener los resultados cuando estén disponibles.
+
+Funciones:
+Síncrona: get_task(task_id).   
+Asíncrona: await aget_task(task_id).   
+Entrada: El task_id (UUID) de la tarea cuyo estado se desea conocer.
+Salida: Un objeto task_status que contiene información sobre la tarea, incluyendo su estado actual (por ejemplo, PENDING, RUNNING, COMPLETED, FAILED), el nombre del agente y el entorno (agent_name, environment_name), y otros campos específicos del job. Si la tarea ha finalizado con éxito, este objeto contendrá la respuesta.   
+Ejemplo de sondeo del estado de una tarea asíncrona:
+
+Python
+
+import asyncio
+import time
+from futurehouse_client import FutureHouseClient # Asumiendo que client está inicializado
+
+# async def check_task_status(task_id):
+#     while True:
+#         task_status_response = await client.aget_task(task_id)
+#         print(f"Estado de la tarea {task_id}: {task_status_response.status}")
+        
+#         if task_status_response.status == "COMPLETED":
+#             if hasattr(task_status_response, 'task') and task_status_response.task:
+#                 # La respuesta completa suele estar anidada
+#                 # La estructura exacta puede variar, consultar la documentación de TaskResponse
+#                 api_response = task_status_response.task.get("response", {})
+#                 if api_response.get("has_successful_answer"):
+#                     print("Respuesta del Agente:")
+#                     print(api_response.get("formatted_answer"))
+#                 else:
+#                     print("El agente completó la tarea pero no encontró una respuesta satisfactoria.")
+#             else:
+#                 print("Tarea completada, pero la estructura de respuesta no es la esperada.")
+#             break
+#         elif task_status_response.status in:
+#             print(f"La tarea {task_id} falló.")
+#             # Aquí se podría inspeccionar task_status_response para más detalles del error
+#             break
+        
+#         await asyncio.sleep(10) # Esperar 10 segundos antes de volver a consultar
+
+# if __name__ == "__main__":
+#     # Asumir que 'created_task_id' se obtuvo de submit_async_task()
+#     # asyncio.run(check_task_status(created_task_id))
+
+El objeto task_status proporciona metadatos valiosos más allá de la simple finalización. Los campos environment_name y agent_name  son particularmente útiles para el registro y seguimiento en sistemas complejos que pueden estar ejecutando múltiples tipos de jobs simultáneamente, facilitando la depuración y el análisis del rendimiento.   
+
+3.4. Procesamiento por Lotes de Tareas
+Para mejorar la eficiencia al enviar múltiples tareas, especialmente si son similares, el cliente FutureHouseClient soporta el procesamiento por lotes.
+
+Funcionalidad: Los métodos run_tasks_until_done() y su contraparte asíncrona arun_tasks_until_done() pueden aceptar una lista de objetos TaskRequest (o diccionarios).   
+Beneficios: Reduce la sobrecarga de realizar múltiples llamadas API individuales y puede ser gestionado de manera más eficiente tanto por el cliente como por el servidor.
+Ejemplo de envío de un lote de tareas de forma asíncrona:
+
+Python
+
+import asyncio
+from futurehouse_client import FutureHouseClient, JobNames
+from futurehouse_client.models.app import TaskRequest
+
+# client = FutureHouseClient(api_key="YOUR_API_KEY") # Ya inicializado
+
+async def submit_batch_tasks():
+    tasks_to_submit =
+    
+    task_responses = await client.arun_tasks_until_done(tasks_to_submit)
+    
+    for i, response in enumerate(task_responses):
+        print(f"Respuesta para la tarea {i+1} ({tasks_to_submit[i].query}):")
+        if response.has_successful_answer:
+            print(response.formatted_answer)
+        else:
+            print("El agente no pudo encontrar una respuesta satisfactoria.")
+        print("-" * 30)
+    return task_responses
+
+# if __name__ == "__main__":
+#     responses = asyncio.run(submit_batch_tasks())
+   
+
+La biblioteca cliente probablemente maneja el envío de lotes ya sea enviando una única solicitud con múltiples tareas (si la API del backend lo soporta) o gestionando eficientemente múltiples solicitudes concurrentes. Esta funcionalidad es crucial para casos de uso como "búsquedas bibliográficas a escala" , que es una aplicación clave de la plataforma FutureHouse.
+
+4. Deconstruyendo las Solicitudes API: El Objeto TaskRequest
+El objeto TaskRequest es el vehículo principal para comunicar las intenciones del usuario a la plataforma FutureHouse. Su correcta formulación es esencial para obtener los resultados deseados.
+
+4.1. Estructura Detallada y Campos
+El objeto TaskRequest encapsula toda la información necesaria para que la plataforma identifique el agente a utilizar, la consulta a procesar y cualquier configuración específica para la ejecución. Sus campos principales son :   
+
+id: Un identificador UUID opcional. Si no se proporciona, la plataforma generará uno. Su propósito es permitir un seguimiento personalizado del job si el usuario así lo requiere.
+name: Una cadena de texto (str) que especifica el nombre del job a ejecutar (por ejemplo, "job-futurehouse-paperqa2"). Alternativamente, y de forma recomendada, se puede utilizar el enumerado JobNames (por ejemplo, JobNames.CROW) para mayor seguridad de tipos y claridad. Este campo determina qué agente y entorno se utilizarán.
+query: Una cadena de texto (str) que contiene la consulta o la descripción de la tarea que el job debe ejecutar. Es la pregunta de investigación o la instrucción directa para el agente.
+runtime_config: Un objeto opcional de tipo RuntimeConfig. Este objeto permite pasar parámetros de tiempo de ejecución más detallados para el job, incluyendo la configuración específica del agente y la información para la continuación de tareas.
+La siguiente tabla detalla las especificaciones de los campos del objeto TaskRequest:
+
+Tabla: Especificación de Campos de TaskRequest
+
+Nombre del Campo	Tipo Python	Tipo API (inferido)	Descripción	Opcionalidad	Ejemplo de Valor (Python)
+id	UUID	UUID (string)	Identificador opcional del job. Se genera uno si no se proporciona.	Opcional	uuid.uuid4()
+name	str / JobNames	string	Nombre del job a ejecutar o miembro del enum JobNames.	Requerido	JobNames.CROW o "job-futurehouse-paperqa2"
+query	str	string	Consulta o tarea a ser ejecutada por el job.	Requerido	"Investigar los efectos de la curcumina en la inflamación."
+runtime_config	RuntimeConfig	object	Parámetros opcionales de tiempo de ejecución para el job.	Opcional	RuntimeConfig(timeout=300, max_steps=10)
+Esta estructura proporciona una interfaz clara y bien definida para la sumisión de trabajos, y el uso de tipos como UUID y el enumerado JobNames ayuda a prevenir errores comunes.
+
+4.2. Profundización en JobNames
+El enumerado JobNames es una abstracción conveniente proporcionada por la biblioteca futurehouse-client para referirse a los diferentes agentes/jobs disponibles en la plataforma. Utilizar este enumerado en lugar de cadenas de texto directas para los nombres de los jobs reduce la probabilidad de errores tipográficos y mejora la legibilidad del código.   
+
+La siguiente tabla ofrece una visión detallada de cada miembro de JobNames, su valor de cadena correspondiente, y el agente que representa:
+
+Tabla: Profundización en JobNames
+
+Miembro del Enum	Valor de Cadena Correspondiente	Agente y Descripción	Caso de Uso Típico	Características Clave
+JobNames.CROW	job-futurehouse-paperqa2	Crow (Búsqueda Rápida): Agente de propósito general para búsqueda en fuentes de datos científicos. Basado en PaperQA2.	Obtener respuestas rápidas, concisas y citadas a preguntas específicas.	Alta precisión, respuestas citadas, optimizado para API.
+JobNames.FALCON	job-futurehouse-paperqa2-deep	Falcon (Búsqueda Profunda): Agente para investigación exhaustiva utilizando múltiples fuentes y bases de datos.	Realizar revisiones bibliográficas profundas, generar informes detallados y estructurados.	Acceso a gran cantidad de fuentes, síntesis de información, acceso a bases de datos especializadas (ej. OpenTargets).
+JobNames.OWL	job-futurehouse-hasanyone	Owl (Búsqueda de Precedentes): Anteriormente HasAnyone. Determina si algo ya ha sido investigado en la ciencia.	Verificar la novedad de una idea de investigación o experimento.	Énfasis en la exhaustividad (recall) de la búsqueda, identificación de lagunas en la investigación.
+JobNames.PHOENIX	job-futurehouse-phoenix	Phoenix (Tareas de Química): Nueva iteración de ChemCrow. Utiliza herramientas quimioinformáticas.	Planificación de síntesis química, diseño de nuevas moléculas, tareas de quimioinformática.	Uso de herramientas especializadas de química, predicción de propiedades moleculares.
+JobNames.DUMMY	job-futurehouse-dummy	Dummy (Tarea de Prueba): Agente para propósitos de prueba y desarrollo.	Probar la conectividad y funcionalidad básica de la API.	Funcionalidad simple para validación.
+La elección del JobName correcto es el primer paso para una interacción exitosa con la API, ya que cada agente está optimizado para un tipo particular de tarea y consulta.
+
+4.3. Elaboración de Consultas Efectivas para Cada Tipo de Agente
+El contenido del campo query en el TaskRequest debe ser cuidadosamente elaborado y adaptado al JobName seleccionado para maximizar la efectividad del agente. Aunque los agentes poseen capacidades avanzadas de procesamiento de lenguaje natural, una consulta bien formulada siempre conducirá a resultados más precisos y relevantes.
+
+Para Crow (JobNames.CROW):
+
+Dado que Crow está diseñado para "hacer una pregunta a fuentes de datos científicos" y proporcionar "respuestas concisas y académicas" , las consultas deben ser específicas y formuladas como preguntas directas que puedan ser respondidas con información factual o resúmenes breves extraídos de la literatura.   
+Ejemplos: "¿Cuál es el mecanismo de acción de la metformina en la diabetes tipo 2?", "¿Qué estudios recientes existen sobre la neuroinflamación en la enfermedad de Alzheimer?"
+Para Falcon (JobNames.FALCON):
+
+Falcon se especializa en "investigar profundamente utilizando una plétora de fuentes" para entregar un "informe detallado y estructurado" y "revisiones bibliográficas profundas". Las consultas para Falcon pueden ser más amplias, indicando un tema de investigación que requiere una síntesis comprensiva.   
+Ejemplos: "Realizar una revisión exhaustiva sobre el papel de las vesículas extracelulares en la comunicación intercelular en el cáncer.", "Investigar y resumir la evidencia actual sobre terapias génicas para la distrofia muscular de Duchenne."
+Para Owl (JobNames.OWL):
+
+Owl responde a la pregunta "¿Alguien ha hecho X antes?". Las consultas deben definir claramente "X", es decir, el experimento, método, o hallazgo específico cuya precedencia se quiere determinar.   
+Ejemplos: "¿Se ha investigado previamente la combinación de los fármacos A y B para el tratamiento de la hipertensión resistente?", "¿Existe algún estudio publicado sobre el uso de la proteína Z como biomarcador para la detección temprana del cáncer de páncreas?"
+Para Phoenix (JobNames.PHOENIX):
+
+Phoenix se enfoca en "tareas de química" como la "planificación de síntesis y diseño de nuevas moléculas". Las consultas deben reflejar estas tareas, incluyendo nombres de compuestos, tipos de reacciones, o propiedades deseadas.   
+Ejemplos: "Proponer una ruta de síntesis para el compuesto Y a partir de precursores comercialmente disponibles.", "Diseñar análogos del fármaco X con mejor solubilidad y menor toxicidad."
+La efectividad de la API depende en gran medida de la calidad y especificidad de la query en relación con la especialización del agente elegido. Consultas genéricas o mal alineadas con las capacidades del agente probablemente producirán resultados subóptimos. Los sistemas subyacentes, como se describe en el contexto de PaperQA (que influye en Crow y Falcon), emplean "análisis de consulta e intención" y un "planificador de consultas". Aunque esto se refiere a los mecanismos internos, el principio de que la consulta guía la estrategia del agente es fundamental. Una consulta clara y bien definida permite a estos mecanismos internos funcionar de manera más efectiva.   
+
+5. Control Detallado: RuntimeConfig y AgentConfig
+Más allá de la consulta básica, la API de FutureHouse ofrece mecanismos para un control más granular sobre la ejecución de las tareas y el comportamiento de los agentes. Esto se logra principalmente a través de los objetos RuntimeConfig y AgentConfig.
+
+5.1. El Objeto RuntimeConfig: Propósito y Aplicación
+El objeto RuntimeConfig es un campo opcional dentro de TaskRequest  y actúa como un contenedor para diversos parámetros que modifican la ejecución de una tarea.   
+
+Sus principales usos documentados son:
+
+Alojamiento de AgentConfig: Puede recibir un objeto AgentConfig que contiene parámetros detallados para configurar el comportamiento del agente.   
+Continuación de Tareas: Se utiliza para la continuación de tareas, pasando el continued_task_id (el ID de la tarea anterior) para mantener el contexto en interacciones conversacionales.   
+Limitación de Ejecución: Permite pasar parámetros como timeout (tiempo máximo de ejecución en segundos) y max_steps (número máximo de pasos que el agente puede tomar) para controlar el consumo de recursos.   
+Ejemplo de uso de RuntimeConfig:
+
+Python
+
+from futurehouse_client.models.app import TaskRequest, RuntimeConfig # Asumiendo JobNames y client ya definidos
+
+# Tarea con timeout y continuación
+previous_task_id = "some-uuid-from-a-previous-task" # Reemplazar con un ID real
+task_with_runtime_config = TaskRequest(
+    name=JobNames.CROW,
+    query="Explícame más sobre el primer punto de tu respuesta anterior.",
+    runtime_config=RuntimeConfig(
+        continued_task_id=previous_task_id,
+        timeout=120  # Timeout de 2 minutos
+    )
+)
+# response = client.run_tasks_until_done(task_with_runtime_config)
+El diseño de RuntimeConfig como un contenedor flexible para diversos parámetros de control, separándolos de la definición central de la tarea (name, query), promueve una API más limpia y extensible. Permite añadir nuevas opciones de configuración en el futuro sin modificar la estructura principal de TaskRequest.
+
+5.2. El Objeto AgentConfig: Profundización
+El objeto AgentConfig es donde reside el control técnico más profundo sobre el comportamiento del agente. La documentación de futurehouse-client indica que los campos disponibles para AgentConfig se encuentran en la documentación de LDP (Language Decision Processes). El repositorio GitHub de LDP  contiene el archivo agent.py donde AgentConfig está definido, y el fragmento  proporciona una definición detallada de esta clase.   
+
+La siguiente tabla resume los parámetros de AgentConfig extraídos de. Es importante notar que muchos de estos parámetros son típicos de la configuración de agentes de Aprendizaje por Refuerzo (RL) durante su entrenamiento. Su inclusión en un RuntimeConfig para un agente desplegado a través de la API merece una consideración cuidadosa sobre su aplicabilidad y efecto en tiempo de inferencia.   
+
+Tabla: Parámetros Detallados de AgentConfig    
+
+Parámetro	Tipo Python	Valor Predeterminado	Propósito 	Notas sobre Aplicabilidad en API Runtime
+seed	int	42	Semilla para generadores de números aleatorios.	Podría influir en la estocasticidad del agente si aún existe alguna durante la inferencia, útil para reproducibilidad.
+max_steps	`int \	None`	None	Número máximo de pasos que el agente puede tomar.
+discount_rate	float	0.99	Tasa de descuento para recompensas futuras (gamma).	Principalmente relevante para el entrenamiento de RL. Es poco probable que afecte directamente la inferencia de un agente desplegado, a menos que el agente realice algún tipo de planificación en tiempo real que utilice este valor.
+epsilon_start	float	1.0	Tasa de exploración inicial (epsilon) para política epsilon-greedy.	Relevante para entrenamiento. Si el agente desplegado aún tiene un componente de exploración (poco común para producción), podría tener efecto.
+epsilon_end	float	0.05	Tasa de exploración final (epsilon).	Ídem epsilon_start.
+epsilon_decay_rate	float	0.0001	Tasa a la que epsilon decae.	Ídem epsilon_start.
+learning_rate	float	0.001	Tasa de aprendizaje (alpha) para el optimizador.	Exclusivamente para entrenamiento. No se espera que tenga efecto en la inferencia de un agente pre-entrenado.
+replay_buffer_size	int	100_000	Tamaño máximo del buffer de repetición.	Exclusivamente para entrenamiento.
+batch_size	int	64	Número de experiencias muestreadas del buffer de repetición.	Exclusivamente para entrenamiento.
+target_update_frequency	int	1000	Frecuencia de actualización de la red objetivo.	Exclusivamente para entrenamiento.
+tau	float	0.005	Coeficiente de actualización suave para la red objetivo.	Exclusivamente para entrenamiento.
+gradient_clipping	`float \	None`	None	Valor para recortar gradientes.
+double_dqn	bool	True	Usar Double DQN.	Técnica de entrenamiento. No afecta directamente la inferencia.
+prioritized_experience_replay	bool	False	Usar Prioritized Experience Replay.	Técnica de entrenamiento.
+alpha_per	float	0.6	Parámetro alfa para PER.	Técnica de entrenamiento.
+beta_per_start	float	0.4	Valor inicial de beta para PER.	Técnica de entrenamiento.
+beta_per_end	float	1.0	Valor final de beta para PER.	Técnica de entrenamiento.
+beta_per_decay_rate	float	0.0001	Tasa de decaimiento de beta para PER.	Técnica de entrenamiento.
+device	str	"cpu"	Dispositivo a usar para entrenamiento (ej. 'cpu', 'cuda').	Podría especificar preferencias de hardware para la inferencia si la plataforma lo permite, aunque esto suele gestionarse a nivel de infraestructura de la plataforma.
+save_every	`int \	None`	None	Frecuencia de guardado del estado del agente (episodios).
+log_every	int	100	Frecuencia de registro de estadísticas de entrenamiento (episodios).	No relevante para la inferencia de API, aunque la plataforma podría tener su propio logging.
+track_wandb	bool	False	Rastrear progreso con Weights & Biases.	No relevante para la inferencia de API.
+wandb_project_name	str	"rl-toolkit"	Nombre del proyecto en Weights & Biases.	No relevante para la inferencia de API.
+wandb_run_name	`str \	None`	None	Nombre de la ejecución en Weights & Biases.
+n_atoms	int	51	Número de átomos para RL distribucional.	Relevante para el entrenamiento de ciertos tipos de agentes. Podría influir en la naturaleza de la salida del agente si este es de tipo distribucional.
+v_min	float	-10.0	Valor mínimo de la distribución de valor para RL distribucional.	Ídem n_atoms.
+v_max	float	10.0	Valor máximo de la distribución de valor para RL distribucional.	Ídem n_atoms.
+noisy_layers	bool	False	Usar capas ruidosas para exploración.	Relevante para entrenamiento. Si las capas ruidosas permanecen activas durante la inferencia, añadirían estocasticidad.
+std_init	float	0.5	Desviación estándar inicial para capas ruidosas.	Ídem noisy_layers.
+n_agents	int	1	Número de agentes en el entorno (para configuraciones multiagente).	Podría ser relevante si el "job" invocado es intrínsecamente multiagente, aunque la API actual parece enfocarse en invocar un agente principal por tarea.
+ou_noise	bool	False	Usar ruido Ornstein-Uhlenbeck para espacios de acción continuos.	Relevante para entrenamiento de agentes con acciones continuas. Si el agente desplegado usa acciones continuas y este ruido está activo, afectará la exploración/variabilidad de la acción.
+ou_theta	float	0.15	Parámetro Theta para ruido OU.	Ídem ou_noise.
+ou_sigma	float	0.2	Parámetro Sigma para ruido OU.	Ídem ou_noise.
+ou_mu	float	0.0	Parámetro Mu para ruido OU.	Ídem ou_noise.
+  
+La documentación de futurehouse-client menciona que runtime_config puede recibir un objeto AgentConfig con los "kwargs deseados" , lo que implica que no todos los campos de AgentConfig podrían ser configurables en tiempo de ejecución a través de la API, o que solo un subconjunto de ellos tiene un efecto práctico en los agentes desplegados. Es probable que muchos de estos parámetros se fijen durante el despliegue del agente en la plataforma FutureHouse. Los desarrolladores deben experimentar o consultar documentación adicional de FutureHouse para determinar qué parámetros de AgentConfig son efectivamente modificables y cuál es su impacto en el comportamiento de inferencia de los agentes.   
+
+Modificar los parámetros de AgentConfig que sí son efectivos en tiempo de ejecución influirá directamente en el proceso de toma de decisiones del agente, su consumo de recursos y, en última instancia, la naturaleza y calidad del TaskResponse. El framework LDP , donde se define AgentConfig, es fundamental para cómo se construyen y operan los agentes de FutureHouse. Una comprensión de los conceptos de LDP (como POMDP, interacción agente-entorno, y grafos computacionales para diferenciación) puede proporcionar un contexto más profundo para los usuarios avanzados de la API, incluso si no entrenan agentes ellos mismos.   
+
+5.3. Controlando la Ejecución: timeout y max_steps
+Para un control más directo y sencillo sobre el consumo de recursos, RuntimeConfig permite especificar timeout y max_steps.   
+
+timeout: Especifica el tiempo máximo, en segundos, que una tarea puede ejecutarse.
+max_steps: Define el número máximo de "pasos" o iteraciones internas que un agente puede realizar para completar una tarea.
+Estos parámetros ofrecen un mecanismo de control de alto nivel, adecuado para la mayoría de los casos de uso comunes donde se necesita limitar el consumo de recursos sin tener que ajustar los parámetros más detallados de AgentConfig. Son cruciales para la gestión de recursos, prevenir tareas que se ejecutan indefinidamente y asegurar un rendimiento predecible, especialmente en sistemas automatizados.
+
+5.4. Implementando la Continuación de Tareas para Consultas de Seguimiento
+Una característica poderosa de la API de FutureHouse es la capacidad de realizar consultas de seguimiento a una tarea anterior, manteniendo el contexto. Esto permite una interacción conversacional con los agentes.   
+
+Se logra utilizando el campo continued_task_id dentro de runtime_config. Se proporciona el task_id de la tarea anterior a la que se desea dar seguimiento.
+
+Ejemplo:
+
+Python
+
+from futurehouse_client import FutureHouseClient, JobNames
+from futurehouse_client.models.app import TaskRequest, RuntimeConfig
+
+# client = FutureHouseClient(api_key="YOUR_API_KEY") # Ya inicializado
+
+# Supongamos que esta es la primera tarea
+initial_task_data = TaskRequest(
+    name=JobNames.CROW,
+    query="¿Cuántas especies de aves existen aproximadamente en el mundo?"
+)
+# initial_task_response = client.run_tasks_until_done(initial_task_data)
+# previous_task_id = initial_task_response.id # Asumiendo que el ID está en la respuesta o se obtiene de create_task
+
+# Para simular, asignamos un ID de tarea ficticio
+previous_task_id = "fictional-task-id-for-continuation" 
+
+# Tarea de continuación
+follow_up_task_data = TaskRequest(
+    name=JobNames.CROW, # Usualmente el mismo agente, pero podría variar
+    query="¿Y cuál es su principal hábitat?",
+    runtime_config=RuntimeConfig(
+        continued_task_id=previous_task_id
+    )
+)
+
+# follow_up_response = client.run_tasks_until_done(follow_up_task_data)
+# if follow_up_response.has_successful_answer:
+#     print(follow_up_response.formatted_answer)
+   
+
+La continuación de tareas probablemente funciona recargando el estado interno del agente desde el continued_task_id proporcionado y luego procesando la nueva consulta dentro de ese contexto recuperado. Esta es una capacidad fundamental para escenarios de investigación iterativos donde una consulta inicial lleva a preguntas adicionales basadas en los resultados obtenidos, imitando un diálogo de investigación natural y permitiendo una exploración y refinamiento progresivo del tema.
+
+6. Interpretando las Respuestas de la API: El Objeto TaskResponse
+Comprender la estructura y el contenido del objeto TaskResponse es crucial para utilizar eficazmente los resultados devueltos por la API de FutureHouse. Este objeto encapsula la respuesta del agente y metadatos sobre la ejecución de la tarea.
+
+6.1. Estructura de Respuesta Estándar
+Los campos primarios que se encuentran en un TaskResponse estándar, aplicables a la mayoría de las interacciones con los agentes, son :   
+
+answer: Un string (str) que contiene la respuesta directa y concisa a la consulta.
+formatted_answer: Un string (str) que presenta la respuesta de una manera especialmente formateada, a menudo incluyendo referencias o citas. Este formato puede ser Markdown o HTML, diseñado para una presentación más rica.
+has_successful_answer: Un booleano (bool) que indica si el agente considera que ha encontrado una respuesta satisfactoria y de buena calidad a la consulta. Este es un indicador clave del éxito de la tarea.
+La separación entre answer y formatted_answer es significativa. Proporciona tanto la salida cruda del agente como una versión más elaborada y lista para su presentación, adecuada para la generación de informes o la visualización donde las citas y el formato son importantes para la credibilidad científica.
+
+6.2. PQATaskResponse Especializado para Crow, Falcon y Owl
+Para las tareas ejecutadas por los agentes Crow, Falcon y Owl, la respuesta por defecto es una instancia de una subclase especializada llamada PQATaskResponse. Esta clase hereda de TaskResponse y puede contener atributos adicionales relevantes para los agentes basados en el framework PaperQA.   
+
+Los desarrolladores que interactúen con estos agentes específicos (Crow, Falcon, Owl) deben anticipar este tipo de respuesta y, si es necesario, realizar una comprobación de tipo para acceder a cualquier campo adicional que PQATaskResponse pueda ofrecer más allá de los campos base de TaskResponse. La naturaleza exacta de estos campos adicionales no se detalla explícitamente en los fragmentos proporcionados, pero estarían relacionados con las capacidades específicas de PaperQA, como información más detallada sobre las fuentes o el proceso de extracción de respuestas.
+
+6.3. Aprovechando el Modo Detallado (Verbose): Acceso a agent_state, environment_frame, metadata
+Para una introspección profunda en el proceso de razonamiento del agente, la API puede proporcionar una respuesta más detallada. Aunque la forma exacta de activar un "modo detallado" (verbose mode) no se especifica para FutureHouseClient en los fragmentos  o , se menciona la existencia de un objeto TaskResponseVerbose.   
+
+Este objeto TaskResponseVerbose contendría campos adicionales cruciales para la transparencia y la depuración :   
+
+agent_state: Un diccionario (dict), descrito como un "objeto grande con todos los estados del agente durante el progreso de la tarea". Este campo ofrecería una traza del estado interno del agente a lo largo de su proceso de deliberación.
+environment_frame: Un diccionario (dict), descrito como un "objeto anidado grande con todos los datos del entorno, incluyendo contextos, metadatos de los artículos y respuestas". Proporcionaría una vista completa de la información que el agente consideró.
+metadata: Un diccionario (dict) con metadatos adicionales sobre la consulta.
+El acceso a agent_state y environment_frame es la base técnica para la característica de "razonamiento transparente" de la plataforma FutureHouse. Estos campos probablemente contengan estructuras JSON o diccionarios complejos y anidados. Su procesamiento requeriría una lógica cliente significativa, pero a cambio ofrecería una visibilidad sin precedentes de las operaciones internas del agente. Esta información detallada no solo es útil para la depuración, sino que también permite un meta-análisis sofisticado del rendimiento del agente y puede utilizarse para refinar consultas o incluso para contribuir al desarrollo de los propios agentes.   
+
+6.4. Tabla: Desglose de Atributos de TaskResponse / PQATaskResponse / TaskResponseVerbose
+La siguiente tabla consolida la información sobre los atributos de respuesta conocidos, ayudando a los desarrolladores a analizar y utilizar el espectro completo de datos devueltos por la API.
+
+Tabla: Desglose de Atributos de Objetos de Respuesta de Tarea
+
+Nombre del Atributo	Tipo Python	Tipo API (inferido)	Descripción	Aparece en	Ejemplo (conceptual)
+id	str	UUID (string)	ID de la tarea.	TaskResponse, PQATaskResponse, TaskResponseVerbose	"a1b2c3d4-e5f6-7890-1234-567890abcdef"
+answer	str	string	Respuesta directa a la consulta.	TaskResponse, PQATaskResponse, TaskResponseVerbose	"Existen aproximadamente 10,000 especies de aves."
+formatted_answer	str	string	Respuesta formateada especial con referencias.	TaskResponse, PQATaskResponse, TaskResponseVerbose	"Existen aproximadamente 10,000 especies de aves. Suelen habitar..."
+has_successful_answer	bool	boolean	Indicador de si el agente encontró una buena respuesta.	TaskResponse, PQATaskResponse, TaskResponseVerbose	True
+status	str	string	Estado actual de la tarea (ej. COMPLETED, RUNNING, FAILED). (Parte de task_status de get_task)	task_status (resultado de get_task)	"COMPLETED"
+agent_name	str	string	Nombre del agente que procesó la tarea. (Parte de task_status de get_task)	task_status (resultado de get_task)	"job-futurehouse-paperqa2"
+environment_name	str	string	Nombre del entorno en el que se ejecutó la tarea. (Parte de task_status de get_task)	task_status (resultado de get_task)	"default_production_env"
+agent_state	dict	object	Objeto grande con todos los estados del agente durante el progreso de la tarea.	TaskResponseVerbose (cuando el modo detallado está activo)	{ "step_1": {...}, "step_2": {...} }
+environment_frame	dict	object	Objeto anidado grande con todos los datos del entorno (contextos, metadatos de artículos, respuestas).	TaskResponseVerbose (cuando el modo detallado está activo)	{ "papers_retrieved": [...], "evidence_snippets": [...] }
+metadata	dict	object	Metadatos extra sobre la consulta.	TaskResponseVerbose (cuando el modo detallado está activo)	{ "query_complexity_score": 0.75, "execution_time_ms": 5500 }
+Otros campos PQATask	varía	varía	Campos adicionales específicos de PaperQA (no detallados en los fragmentos).	PQATaskResponse	Dependiente de la implementación de PaperQA
+Nota: La estructura exacta de task_status devuelta por get_task puede anidar el objeto TaskResponse o sus variantes. El campo id en la tabla de respuesta se refiere al ID de la tarea en sí, que también se usa para la continuación.
+
+7. Uso Avanzado de la API y Mejores Prácticas
+Para aprovechar al máximo la API de FutureHouse y construir aplicaciones robustas y eficientes, es fundamental considerar aspectos avanzados como el manejo de errores, la limitación de tasa y la optimización del rendimiento.
+
+7.1. Manejo Robusto de Errores
+Un manejo de errores sólido es esencial para cualquier aplicación que dependa de servicios externos.
+
+Indicador Primario de Éxito: El flag has_successful_answer en el objeto TaskResponse es el primer indicador a verificar para determinar si el agente considera que ha completado la tarea satisfactoriamente. Un valor False no necesariamente indica un error de API, sino que el agente no pudo encontrar una respuesta de calidad.   
+
+Errores de API y de Red: La documentación de futurehouse-client  no detalla explícitamente códigos de error específicos de la API de la plataforma ni una estrategia integral de manejo de errores más allá del flag mencionado. Por lo tanto, los desarrolladores deben:   
+
+Utilizar bloques try-except estándar de Python para capturar excepciones generales que puedan surgir de problemas de red, errores de serialización/deserialización, o comportamientos inesperados del cliente SDK.   
+En caso de fallo, registrar la respuesta completa de la tarea (TaskResponse o, si está habilitado, TaskResponseVerbose) para facilitar la depuración.
+Implementar mecanismos de reintento con retroceso exponencial (exponential backoff) para errores transitorios de red al realizar llamadas a la API. Esto ayuda a manejar interrupciones momentáneas del servicio.
+La ausencia de una lista detallada de códigos de error específicos de la API en la documentación principal del cliente  representa un área donde los desarrolladores que necesiten un manejo de errores muy granular podrían encontrar limitaciones. Podrían tener que inferir los tipos de error basándose en los códigos de estado HTTP (si el RestClient los expone de alguna manera a través de excepciones) o en mensajes de excepción genéricos. Aunque  lista errores comunes para un producto diferente de Futurex, demuestra que tales enumeraciones pueden existir; su ausencia para la API de FutureHouse en los fragmentos disponibles es notable.   
+
+Ejemplo de manejo de errores básico:
+
+Python
+
+# from futurehouse_client import FutureHouseClient, JobNames, TaskRequest
+# client = FutureHouseClient(api_key="YOUR_API_KEY")
+
+# task_data = TaskRequest(name=JobNames.CROW, query="Una consulta ejemplo")
+# try:
+#     response = client.run_tasks_until_done(task_data)
+#     if response.has_successful_answer:
+#         print(f"Respuesta: {response.formatted_answer}")
+#     else:
+#         print("El agente no pudo generar una respuesta satisfactoria.")
+#         # Aquí se podría registrar 'response' para más detalles.
+# except requests.exceptions.ConnectionError as e: # Asumiendo que el cliente usa 'requests' internamente
+#     print(f"Error de conexión: {e}")
+#     # Implementar lógica de reintento aquí
+# except Exception as e:
+#     print(f"Ocurrió un error inesperado: {e}")
+#     # Registrar detalles del error y 'task_data'
+7.2. Limitación de Tasa (Rate Limiting): Comprendiendo las Restricciones de la Plataforma
+La limitación de tasa es una práctica estándar para las APIs para prevenir el abuso, asegurar un uso justo y gestionar los costos operativos.
+
+Documentación de futurehouse-client: La documentación principal de futurehouse-client  no especifica explícitamente los límites de tasa para la API de la plataforma FutureHouse en sí.   
+Paquete fhlmi: En contraste, el paquete fhlmi (Language Model Interface) , que probablemente subyace a las interacciones de los agentes con los LLMs, implementa una limitación de tasa detallada. Esta incluye límites de Tokens por Minuto (TPM) y Solicitudes por Minuto (RPM), con opciones de almacenamiento en memoria o Redis para la limitación entre procesos.   
+PaperQA2 y Límites de Inferencia: Se menciona que PaperQA2 (utilizado por Crow y Falcon) añadió límites de tasa para soportar usuarios con bajos límites de inferencia (es decir, límites en las llamadas a LLM).   
+Políticas Generales: Existe una advertencia general de que "los sistemas agénticos deben ser respetuosos con los límites de API" , y FutureHouse planea que su plataforma sea "accesible públicamente con límites de uso para investigadores individuales".   
+Aunque los límites de tasa de la API de la plataforma no están explícitamente documentados para futurehouse-client, es casi seguro que existen. La presencia de una limitación de tasa sofisticada en fhlmi  para las llamadas a LLM subyacentes sugiere que FutureHouse es consciente de tales restricciones y las gestiona internamente. Los usuarios de la API futurehouse-client deben programar defensivamente, anticipando una posible limitación de tasa (que a menudo se manifiesta como errores HTTP 429 "Too Many Requests"). Es aconsejable consultar cualquier documentación adicional a nivel de plataforma o la página de perfil del usuario para obtener detalles específicos sobre los límites aplicables. Exceder estos límites (incluso si no están documentados) probablemente resultará en solicitudes fallidas o un bloqueo temporal del acceso.   
+
+7.3. El Paquete fhlmi (Language Model Interface): Una Mirada Más Profunda
+Aunque no es el futurehouse-client en sí, el paquete fhlmi  (cuya fuente es probablemente el repositorio GitHub llm-client ) ofrece una visión valiosa de cómo FutureHouse podría estar gestionando las interacciones con los Modelos de Lenguaje Grandes (LLMs), que son el núcleo de sus agentes. Comprender fhlmi es relevante para una comprensión técnica profunda del ecosistema.   
+
+Características clave de fhlmi :   
+
+Interfaz Unificada para LLMs: Proporciona una clase base abstracta LLMModel y una implementación concreta LiteLLMModel (que utiliza la popular biblioteca LiteLLM para interactuar con múltiples proveedores de LLM).
+Seguimiento de Costos: LLMResult.cost ofrece una estimación del costo de la llamada al LLM en USD. Un GLOBAL_COST_TRACKER permite el seguimiento global de costos.
+Limitación de Tasa Detallada: Implementa límites de TPM y RPM, configurables por modelo, con almacenamiento en memoria o Redis.
+Llamada a Herramientas (Tool Calling): Soporta la invocación de funciones (herramientas) por parte del LLM, utilizando objetos Tool del framework aviary. Esto indica una fuerte interoperabilidad con su framework de entrenamiento de agentes.   
+Modelos de Embedding: Incluye soporte para varios modelos de embedding como LiteLLMEmbeddingModel y SentenceTransformerEmbeddingModel.
+fhlmi demuestra un enfoque sofisticado para la gestión de interacciones con LLMs, centrándose en la estandarización, el control de costos y el uso. Es muy probable que los agentes de la plataforma FutureHouse, al invocar diversos LLMs (como Claude ), utilicen fhlmi o un sistema interno muy similar. Las características de fhlmi, como el seguimiento de costos y la limitación de tasa por modelo, son esenciales para una plataforma que depende de múltiples proveedores o modelos de LLM. Los desarrolladores que construyan sus propios sistemas agénticos o busquen extender las capacidades de FutureHouse podrían encontrar en fhlmi (si es utilizable públicamente más allá de las necesidades internas de FutureHouse) o en sus patrones de diseño un recurso muy valioso.   
+
+7.4. Maximizando el Rendimiento con Operaciones Asíncronas y Procesamiento por Lotes
+La API de FutureHouse está diseñada para soportar un alto rendimiento mediante el uso combinado de operaciones asíncronas y procesamiento por lotes.
+
+Operaciones Asíncronas: Métodos como acreate_task, aget_task, y arun_tasks_until_done permiten que la aplicación cliente no se bloquee mientras espera respuestas de la API, liberando recursos para otras tareas.   
+Procesamiento por Lotes: La capacidad de enviar múltiples TaskRequest en una sola llamada a arun_tasks_until_done (o run_tasks_until_done) reduce la latencia de red y la sobrecarga de múltiples llamadas individuales.   
+Recomendaciones para Optimizar el Rendimiento:
+
+Utilizar asyncio.gather en Python para gestionar la ejecución concurrente de múltiples tareas asíncronas de manera eficiente.
+Preferir los métodos de procesamiento por lotes siempre que se necesite enviar un gran número de tareas similares o relacionadas.
+Implementar un sondeo inteligente para aget_task con un retroceso (backoff) adecuado para evitar sobrecargar la API al verificar el estado de las tareas.
+El diseño de la API soporta inherentemente la escalabilidad al permitir a los usuarios gestionar la concurrencia de manera efectiva a través de estas características, que son patrones estándar para la interacción con APIs de alto rendimiento.
+
+8. Perspectivas de la Arquitectura de la API (Basadas en RestClient y el Comportamiento del Cliente)
+Aunque la documentación de futurehouse-client se centra en el uso del SDK, podemos inferir ciertos aspectos de la arquitectura subyacente de la API de la plataforma FutureHouse.
+
+8.1. La Naturaleza RESTful Implícita de la API de FutureHouse
+Varios indicadores sugieren que la API de FutureHouse sigue los principios de la arquitectura REST (Representational State Transfer):
+
+El FutureHouseClient implementa un RestClient. Los clientes REST están diseñados para comunicarse con APIs basadas en REST.   
+La interacción implica el envío de datos estructurados (TaskRequest) y la recepción de datos estructurados (TaskResponse), comúnmente utilizando JSON como formato de datos en las APIs REST.
+La autenticación se realiza mediante una clave API, típicamente enviada en las cabeceras HTTP, una práctica común en APIs RESTful.
+Es muy probable que la API utilice métodos HTTP estándar, JSON para los cuerpos de solicitud/respuesta, y códigos de estado HTTP para indicar los resultados de las operaciones, incluso si no todos estos detalles están explícitamente documentados en los fragmentos proporcionados para la API de la plataforma.
+
+8.2. Métodos HTTP Comunes (Inferidos)
+Basándose en la funcionalidad de los métodos del SDK y las convenciones REST:
+
+create_task() y acreate_task() probablemente se asignen a una solicitud HTTP POST a un endpoint de tareas, ya que implican la creación de un nuevo recurso (una tarea).
+get_task() y aget_task() probablemente se asignen a una solicitud HTTP GET a un endpoint específico de una tarea (por ejemplo, /tasks/{task_id}), ya que implican la recuperación de un recurso existente.
+Comprender estas asignaciones puede ser útil para la depuración o si alguna vez se necesita una interacción HTTP directa (aunque se recomienda encarecidamente utilizar el SDK para la estabilidad y el manejo de detalles).
+
+8.3. URL Base de la API y Estructura de Endpoints (Parcialmente Oculta)
+El SDK futurehouse-client abstrae los detalles de la URL base y las rutas exactas de los endpoints, lo cual es una práctica común para simplificar el uso y permitir que la infraestructura subyacente cambie sin afectar el código del cliente.
+
+URL Base: No se declara explícitamente en la documentación de futurehouse-client. Sin embargo, dado que las claves API se obtienen de https://platform.futurehouse.org/profile , es altamente probable que la API esté alojada bajo el dominio platform.futurehouse.org, posiblemente en una ruta como /api/v1/ o similar. El fragmento  (http://127.0.0.1:8000/v1) se refiere a un servidor de prueba local y no a la plataforma de producción.   
+Estructura de Endpoints: La función get_task(task_id) sugiere una estructura de endpoint como /api/.../tasks/{task_id}. Para create_task, podría ser un endpoint como /api/.../tasks.
+La falta de una URL base y una lista completa de endpoints explícitamente documentadas en la documentación principal del cliente significa que los usuarios dependen en gran medida del SDK futurehouse-client. Esto es generalmente beneficioso para la estabilidad (el SDK maneja los cambios), pero limita la comprensión si se deseara utilizar un cliente HTTP diferente o realizar una depuración de red de bajo nivel. Para un uso "100% técnico", conocer estos detalles sería ventajoso, aunque el SDK es el método de interacción preferido y soportado.
+
+9. Conclusión: Construyendo Flujos de Trabajo Científicos Avanzados
+La API de FutureHouse, accesible a través del SDK futurehouse-client, ofrece un conjunto potente y flexible de herramientas para la automatización y aceleración de la investigación científica. Su diseño permite a los desarrolladores y científicos computacionales integrar capacidades avanzadas de IA en sus flujos de trabajo de manera programática.
+
+9.1. Recapitulación de las Capacidades de la API de FutureHouse para una Utilización del 100%
+Para una utilización completa de la API, es esencial dominar:
+
+Selección Estratégica de Agentes: Elegir el JobName adecuado (Crow, Falcon, Owl, Phoenix) según la naturaleza de la tarea científica.
+Configuración Detallada: Utilizar RuntimeConfig y, cuando sea necesario, los parámetros aplicables de AgentConfig para afinar el comportamiento del agente y gestionar los recursos.
+Operaciones Asíncronas y por Lotes: Emplear acreate_task, aget_task, y arun_tasks_until_done para maximizar el rendimiento y la escalabilidad, especialmente para tareas de gran volumen o larga duración.
+Interpretación Exhaustiva de Respuestas: Analizar no solo la respuesta directa (answer, formatted_answer) sino también los indicadores de éxito (has_successful_answer) y, para una transparencia total, los datos detallados de TaskResponseVerbose (agent_state, environment_frame).
+Manejo Robusto de Errores y Límites: Implementar una gestión de errores sólida y estar atento a los límites de uso de la plataforma.
+9.2. Visualizando Interacciones Complejas y Encadenadas de Agentes y Flujos de Investigación Automatizados
+La verdadera potencia de la API de FutureHouse se manifiesta en la capacidad de orquestar interacciones complejas entre múltiples agentes para construir flujos de trabajo de investigación automatizados. Esto se alinea directamente con el objetivo de FutureHouse de permitir que "encadenando estos agentes, a escala, los científicos puedan acelerar enormemente el ritmo del descubrimiento científico".
+
+Se pueden imaginar escenarios como:
+
+Descubrimiento de Hipótesis:
+Utilizar Owl para verificar la novedad de una idea de investigación.
+Si la idea es novedosa, invocar a Falcon para realizar una revisión bibliográfica exhaustiva del área temática general.
+Analizar el informe de Falcon y utilizar Crow para plantear preguntas específicas de seguimiento sobre aspectos particulares o para buscar datos experimentales que respalden/contradigan sub-hipótesis.
+Si la investigación involucra química, Phoenix podría ser utilizado para explorar la síntesis de compuestos relevantes o el diseño de moléculas con propiedades deseadas.
+Monitoreo Continuo de la Literatura:
+Configurar un sistema que periódicamente utilice Crow o Falcon con consultas específicas para monitorear nuevas publicaciones en un campo de interés.
+Analizar automáticamente las respuestas para identificar artículos clave, tendencias emergentes o resultados contradictorios.
+Validación y Contextualización de Datos Experimentales:
+Tras obtener resultados de experimentos de alto rendimiento (screening), utilizar Falcon o Crow para buscar en la literatura información que ayude a contextualizar esos resultados, identificar mecanismos conocidos o proponer los siguientes pasos experimentales.
+Estos ejemplos apenas rozan la superficie de lo que es posible. La API proporciona los bloques de construcción para que los investigadores diseñen y ejecuten protocolos de investigación computacional a una escala y velocidad previamente inalcanzables.
+
+9.3. El Camino hacia la Maestría y Futuros Desarrollos de la API
+Dominar la API de FutureHouse es un proceso continuo. Se alienta a los usuarios a:
+
+Explorar la Documentación y Ejemplos: Profundizar en el client_notebook.ipynb  proporcionado por FutureHouse y cualquier documentación adicional que se publique.   
+Experimentar: La mejor manera de entender las capacidades y matices de la API es a través de la experimentación práctica con diferentes agentes, consultas y configuraciones.
+Mantenerse Actualizado: Las APIs y las plataformas de IA evolucionan rápidamente. Es importante estar atento a los anuncios de FutureHouse  sobre nuevas características, agentes, versiones de la API o cambios en las políticas de uso.   
+La API de FutureHouse representa un paso significativo hacia la democratización de herramientas de IA de vanguardia para la comunidad científica. Su uso efectivo y creativo tiene el potencial de transformar la forma en que se realiza la investigación, permitiendo a los científicos centrarse más en la formulación de preguntas innovadoras y la interpretación de resultados, mientras que los aspectos más laboriosos de la recopilación y síntesis de información pueden ser asistidos o automatizados por estos poderosos agentes de IA.
