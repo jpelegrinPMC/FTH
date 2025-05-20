@@ -623,3 +623,157 @@ Explorar la Documentación y Ejemplos: Profundizar en el client_notebook.ipynb  
 Experimentar: La mejor manera de entender las capacidades y matices de la API es a través de la experimentación práctica con diferentes agentes, consultas y configuraciones.
 Mantenerse Actualizado: Las APIs y las plataformas de IA evolucionan rápidamente. Es importante estar atento a los anuncios de FutureHouse  sobre nuevas características, agentes, versiones de la API o cambios en las políticas de uso.   
 La API de FutureHouse representa un paso significativo hacia la democratización de herramientas de IA de vanguardia para la comunidad científica. Su uso efectivo y creativo tiene el potencial de transformar la forma en que se realiza la investigación, permitiendo a los científicos centrarse más en la formulación de preguntas innovadoras y la interpretación de resultados, mientras que los aspectos más laboriosos de la recopilación y síntesis de información pueden ser asistidos o automatizados por estos poderosos agentes de IA.
+
+
+
+TaskRequest(
+name=JobNames.OWL,
+query="Has anyone tested therapeutic exerkines in humans or
+NHPs?",
+)
+)
+print(task_response.answer)
+Field Type Description
+answer str Answer to your query.
+formatted_answer str
+Specially formatted answer
+with references.
+has_successful_answer bool
+Flag for whether the agent
+was able to find a good answer
+to your query or not.
+If using the verbose setting, much more data can be pulled down from your
+TaskResponse, which will exist across all agents (not just Owl, Crow, and Falcon).
+In that case, a TaskResponseVerbose will have the following fields:
+| Field | Type | Description |
+| ----------------- | ---- | ---------------------------------------------------------------------------------------
+------------------------------- | --- |
+| agent_state | dict | Large object with all agent states during the progress of your task. |
+| environment_frame | dict | Large nested object with all environment data, for PQA
+environments it includes contexts, paper metadata, and answers. |
+| metadata | dict | Extra metadata about your query. | |
+Once a task is submitted and the answer is returned, FutureHouse platform allow you to
+ask follow-up questions to the previous task.
+It is also possible through the platform API.
+To accomplish that, we can use the runtime_config we discussed in the Simple task
+running section.
+from futurehouse_client import FutureHouseClient, JobNames
+from futurehouse_client.models.app import TaskRequest
+client = FutureHouseClient(
+api_key="your_api_key",
+)
+task_response = client.run_tasks_until_done(
+TaskRequest(
+name=JobNames.OWL,
+query="Has anyone tested therapeutic exerkines in humans or
+NHPs?",
+),
+verbose=True,
+)
+print(task_response.environment_frame)
+Task Continuation
+Sometimes you may want to submit many jobs, while querying results at a later time. In this
+way you can do other things while waiting for a response. The platform API supports this as
+well rather than waiting for a result.
+from futurehouse_client import FutureHouseClient, JobNames
+client = FutureHouseClient(
+api_key="your_api_key",
+)
+task_data = {"name": JobNames.CROW, "query": "How many species of birds
+are there?"}
+task_id = client.create_task(task_data)
+continued_task_data = {
+"name": JobNames.CROW,
+"query": "From the previous answer, specifically,how many species
+of crows are there?",
+"runtime_config": {"continued_task_id": task_id},
+}
+task_result = client.run_tasks_until_done(continued_task_data)
+from futurehouse_client import FutureHouseClient
+client = FutureHouseClient(
+api_key="your_api_key",
+)
+task_data = {"name": JobNames.CROW, "query": "How many species of birds
+are there?"}
+task_id = client.create_task(task_data)
+# move on to do other things
+task_status = client.get_task(task_id)
+Asynchronous tasks
+task_status contains information about the task. For instance, its status, task,
+environment_name and agent_name, and other fields specific to the job. You can
+continually query the status until it's success before moving on.
+docs
+client_notebook
+Here we use auth_type=AuthType.API_KEY to authenticate with the platform.
+Please log in to the platform and go to your user settings to get your API key.
+In the futurehouse platform, we refer to the deployed combination of agent and
+environment as a job.
+Submitting task to a futurehouse job is done by calling the create_task method, which
+receives a TaskRequest object.
+from futurehouse_client import FutureHouseClient, JobNames
+from futurehouse_client.models import (
+RuntimeConfig,
+TaskRequest,
+)
+from ldp.agent import AgentConfig
+client = FutureHouseClient(
+api_key="your-api-key",
+)
+FutureHouse platform client usage example
+Client instantiation
+Submit a task to an available futurehouse job
+You can also pass a runtime_config to the create_task method, which will be used to
+configure the agent on runtime.
+Here, we will define a agent configuration and include it in the TaskRequest. This agent is
+used to decide the next action to take.
+We will also use the max_steps parameter to limit the number of steps the agent will take.
+The platform allows to ask follow-up questions to the previous job.
+To accomplish that, we can use the runtime_config to pass the task_id of the previous
+task.
+task_data = TaskRequest(
+name=JobNames.from_string("crow"),
+query="What is the molecule known to have the greatest solubility
+in water?",
+)
+task_response = client.run_tasks_until_done(task_data)
+print(f"Job status: {task_response.status}")
+print(f"Job answer: \n{task_response.formatted_answer}")
+agent = AgentConfig(
+agent_type="SimpleAgent",
+agent_kwargs={
+"model": "gpt-4o",
+"temperature": 0.0,
+},
+)
+task_data = TaskRequest(
+name=JobNames.CROW,
+query="How many moons does earth have?",
+runtime_config=RuntimeConfig(agent=agent, max_steps=10),
+)
+task_response = client.run_tasks_until_done(task_data)
+print(f"Job status: {task_response.status}")
+print(f"Job answer: \n{task_response.formatted_answer}")
+Continue a job
+Notice that create_task accepts both a TaskRequest object and a dictionary with
+keywords arguments.
+task_data = TaskRequest(
+name=JobNames.CROW, query="How many species of birds are there?"
+)
+task_response = client.run_tasks_until_done(task_data)
+print(f"First job status: {task_response.status}")
+print(f"First job answer: \n{task_response.formatted_answer}")
+continued_job_data = {
+"name": JobNames.CROW,
+"query": (
+"From the previous answer, specifically,how many species of
+crows are there?"
+),
+"runtime_config": {"continued_job_id": task_response.task_id},
+}
+continued_task_response =
+client.run_tasks_until_done(continued_job_data)
+print(f"Continued job status: {continued_task_response.status}")
+print(f"Continued job answer:
+\n{continued_task_response.formatted_answer}")
+This is a offline tool, your data stays locally and is not send to any server!
+
